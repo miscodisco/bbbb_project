@@ -30,16 +30,22 @@ stringency <- read_csv("stringency.csv")%>%
 
 stringency <- merge(stringency, country_codes)
 
-df <- left_join(music, epidem)
-
-
-#jeg skal mean over landende så der kun er én værdi pr land pr dag 
+df_music <- left_join(music, epidem)
+df_non_music <- left_join(non_music, epidem)
 
 stringency_new <- aggregate(StringencyIndex~date+alpha2, stringency, mean)
 
-df <- left_join(df, stringency_new)
+df_music <- left_join(df_music, stringency_new)
+df_non_music <- left_join(df_non_music, stringency_new)
+
 
 mobility_new <- aggregate(.~date+alpha2, mobility_new, mean)
 
-df <- left_join(df, mobility_new)
+df_music <- left_join(df_music, mobility_new)
+df_non_music <- left_join(df_non_music, mobility_new)
+
+write_csv(df_music, "df_music.csv")
+write_csv(df_non_music, "df_non.csv")
+
+
 
