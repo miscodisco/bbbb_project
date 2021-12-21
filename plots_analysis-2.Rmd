@@ -1,0 +1,405 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Setup 
+```{r}
+# packages
+install.packages("pacman")
+
+pacman::p_load(tidyverse, viridis, patchwork, devtools, broom, car, scales, hexbin)
+install_github("runehaubo/ordinal")
+
+# working directory
+# setwd("~/Documents/UNI/sem 5/bachelor/bbbb_project")
+
+# loading data 
+full_df <- read_csv("full_df.csv")
+
+# finding the countries with more than 100 music related tweets
+countries <- full_df %>% 
+  filter(type == "music") %>% 
+  count(country)  %>% 
+  filter(n > 100)
+
+# cleaning 
+df <- full_df %>% 
+  #getting the relevant columns
+  select(preprocessed, sentiment, emotion, user_id, date, country, StringencyIndex, type) %>% 
+  #mkaing new columns and making varibales factor / ordered / scaled
+  mutate(type = ifelse(type == "non", 0, 1),
+         type = as.factor(type),
+         sentiment = ordered(sentiment),
+         StringencyIndex_s = scale(StringencyIndex),
+         joy = ifelse(emotion == "joy", 1, 0),
+         fear = ifelse(emotion == "anger", 1, 0),
+         disgust = ifelse(emotion == "disgust", 1, 0), 
+         sadness = ifelse(emotion == "sadness", 1, 0))%>% 
+  #removing NA's
+  drop_na() %>% 
+  #only keeping countries with a substantial amount of music related tweets
+  filter(country %in% countries$country)
+
+# checking for NA's
+anyNA.data.frame(df)
+
+# making columns factor
+df <- df %>% 
+  mutate(joy = as.factor(joy),
+         fear = as.factor(fear),
+         disgust = as.factor(disgust),
+         sadness = as.factor(sadness))
+
+
+```
+
+
+
+# plots for methods section  
+```{r}
+# df %>% 
+#   count(date, sort = T)
+
+df %>% 
+  ggplot(., aes(date)) +
+  geom_bar(aes(fill = date == "2020-03-12"), stat ="count") + 
+  scale_fill_manual(values = c(muted("red"), "gray40")) +
+  theme_bw() +
+  theme(legend.position = "none")
+
+
+df %>% # just wanting to illustrate the power that 2020-03-12 had on music related tweets
+  filter(type == "music") %>% 
+  ggplot(., aes(date)) +
+  geom_histogram(stat ="count", aes(fill = date == "2020-03-12"))+
+  scale_fill_manual(values = c("gray40", "firebrick")) +
+  theme_bw() +
+  theme(legend.position = "none")
+
+
+#counting nr of tweets pr country in each group of tweets
+# df %>% 
+#   filter(type == "non") %>% 
+#   count(country, sort = T)
+# 
+# df %>% 
+#   filter(type == "music") %>% 
+#   count(country, sort = T)
+
+#counting nr of tweets pr sentiment in each group of tweets
+p1 <- df %>% 
+  filter(type == "0") %>% 
+  ggplot(., aes(x=sentiment, fill = sentiment)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust=-0.2)+
+  ggtitle("a) Non-music related")+
+  theme_bw()+
+  theme(legend.position = "none",   
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank())
+
+p2 <- df %>% 
+  filter(type == "1") %>% 
+  ggplot(., aes(x=sentiment, fill = sentiment)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust = -0.2)+
+  ggtitle("a) Music related")+  
+  theme_bw()+
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank())
+
+#p1+p2
+
+#counting nr of tweets pr emotion in each group of tweets
+p3 <- df %>% 
+  filter(type == "0") %>% 
+  filter(emotion != "others" & emotion != "surprise" & emotion != "anger") %>% 
+  ggplot(., aes(x=emotion, fill = emotion)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust=-0.2)+
+  theme_bw()+
+  ggtitle("b) Non-music related")+
+  theme(legend.position = "none",
+        axis.text.x = element_blank(),
+        axis.text.y = element_blank())
+
+p4 <- df %>% 
+  filter(type == "1") %>% 
+  filter(emotion != "others" & emotion != "surprise" & emotion != "anger") %>% 
+  ggplot(., aes(x=emotion, fill = emotion)) +
+  geom_bar() +
+  geom_text(stat='count', aes(label=..count..), vjust = -0.2)+
+  theme_bw() +
+  ggtitle("b) Music related") +
+  theme(axis.text.x = element_blank(),
+        axis.text.y = element_blank())
+
+(p1+p2)/(p3+p4) 
+
+```
+
+# more exploratory plotting
+```{r}
+# number of tweets with each emotion over time
+p5 <- df %>% 
+  filter(type == "1") %>% 
+  filter(emotion != "others") %>%
+  ggplot(., aes(date, col = emotion)) + 
+  geom_point(stat = "count")+
+  geom_smooth(stat = "count", size = 0.5)+
+  theme_minimal() +
+  theme(legend.position = "none")
+
+p6 <- df %>% 
+  filter(type == "0") %>% 
+  filter(emotion != "others") %>%
+  ggplot(., aes(date, col = emotion)) + 
+  geom_point(stat = "count")+
+  geom_smooth(stat = "count", size = 0.5)+
+  theme_minimal()
+
+p5+p6
+
+# number of tweets with each sentiment over time
+p6 <- df %>% 
+  filter(type == "1") %>% 
+  ggplot(., aes(date, col = sentiment)) + 
+  geom_point(stat = "count")+
+  geom_smooth(stat = "count", size = 0.5)+
+  theme_minimal() +
+  theme(legend.position = "none")
+
+p7 <- df %>% 
+  filter(type == "0") %>% 
+  ggplot(., aes(date, col = sentiment)) + 
+  geom_point(stat = "count")+
+  geom_smooth(stat = "count", size = 0.5)+
+  theme_minimal()
+
+p6+p7
+```
+
+# analysis-relevant plots
+```{r}
+new_labels <- c("0" = "non-music related", "1" = "music related")
+
+# number of tweets with joy over stringency
+p5 <- df %>% 
+  ggplot(., aes(StringencyIndex, col = joy)) + 
+  geom_density(aes(fill = joy), alpha = 0.7) + 
+  theme_minimal() +
+  labs(title = "4a)", fill = "Joy\n", color = "Joy\n")+
+  scale_color_viridis(discrete = TRUE, option = "mako",begin = 0.4, end=0.9)+
+  scale_fill_viridis(discrete = TRUE, option = "mako", begin = 0.4, end=0.9)+  
+  facet_wrap(~type, labeller = labeller(type = new_labels)) +
+  theme(strip.text = element_text(size=9,  color = "black"),
+        strip.background = element_rect(fill="light grey", color = "white"))
+
+# number of tweets with fear over stringency
+p6 <- df %>% 
+  ggplot(., aes(StringencyIndex, col = fear)) + 
+  geom_density(aes(fill = fear), alpha = 0.6) + 
+  theme_minimal() +
+  labs(title = "4b)",color = "Fear\n", fill = "Fear\n") + 
+  scale_color_viridis(discrete = TRUE, option = "viridis",begin = 0.55, end=0.9)+
+  scale_fill_viridis(discrete = TRUE, option = "viridis", begin = 0.55, end=0.9)+
+  facet_wrap(~type, labeller = labeller(type = new_labels)) +
+  theme(strip.text = element_text(size=9,  color = "black"),
+        strip.background = element_rect(fill="light grey", color = "white"))
+
+p8 <- df %>% 
+  ggplot(., aes(StringencyIndex, col = disgust)) + 
+  geom_density(aes(fill = disgust), alpha = 0.7) + 
+  theme_minimal() +
+  labs(title = "4c)", color = "Disgust\n", fill = "Disgust\n") + 
+  scale_color_viridis(discrete = TRUE, option = "rocket",begin = 0.6, end=0.9)+
+  scale_fill_viridis(discrete = TRUE, option = "rocket",begin = 0.6, end=0.9)+
+  facet_wrap(~type, labeller = labeller(type = new_labels)) +
+  theme(strip.text = element_text(size=9,  color = "black"),
+        strip.background = element_rect(fill="light grey", color = "white"))
+
+p9 <- df %>% 
+  ggplot(., aes(StringencyIndex, col = sadness)) + 
+  geom_density(aes(fill = sadness), alpha = 0.6) + 
+  theme_minimal() +
+  labs(title = "4d)",color = "Sadness\n", fill = "Sadness\n") + 
+  scale_color_viridis(discrete = TRUE, option = "plasma",begin = 0.3, end=0.7)+
+  scale_fill_viridis(discrete = TRUE, option = "plasma",begin = 0.3, end=0.7)+  
+  facet_wrap(~type, labeller = labeller(type = new_labels)) +
+  theme(strip.text = element_text(size=9,  color = "black"),
+        strip.background = element_rect(fill="light grey", color = "white"))
+
+
+# number of tweets with each sentiment over time
+p7 <- df %>% 
+  ggplot(., aes(StringencyIndex, col = sentiment)) + 
+  geom_density(aes(fill = sentiment), alpha = 0.7) + 
+  theme_minimal() +
+  #scale_color_viridis(discrete = TRUE, option = "A",begin = 0.6, end=0.9)+
+  #scale_fill_viridis(discrete = TRUE, option = "A",begin = 0.6, end=0.9)+
+  facet_wrap(~type, labeller = labeller(type = new_labels)) +
+  theme(strip.text = element_text(size=9,  color = "black"),
+        strip.background = element_rect(fill="light grey", color = "white"))
+
+p7 
+p5 
+p6 
+p8 
+p9
+
+(p5+p6) / (p8+p9)
+
+```
+
+# clm models - control analysis 
+```{r}
+# ASSUMPTIONS CHECK 
+#independence of observations
+rep_users <- df %>% 
+  group_by(user_id) %>% 
+  count() %>% 
+  filter(n > 2)
+
+# CONTROL ANALYSIS 
+#removing users that appear more than once 
+df_control <- df %>% 
+  filter(!user_id %in% rep_users$user_id)
+
+# models 
+#m1 <- ordinal::clm(sentiment ~ type, data = df_control) 
+m2 <- ordinal::clm(sentiment ~ type + country, data = df_control) 
+#m3 <- ordinal::clm(sentiment ~ type + StringencyIndex_s + country, data = df_control) 
+m4 <- ordinal::clm(sentiment ~ type*StringencyIndex_s + country, data = df_control) 
+
+summary(m4)
+
+summary(m2)
+
+# model comparison 
+#anova(m1, m2, m3, m4)
+
+# ASSUMPTIONS CHECK
+#ordinal::nominal_test(m4)
+
+```
+
+# clm models - full analysis
+```{r}
+#models 
+#M1 <- ordinal::clm(sentiment ~ type, data = df)  
+M2 <- ordinal::clm(sentiment ~ type + country, data = df) 
+#M3 <- ordinal::clm(sentiment ~ type + StringencyIndex_s + country, data = df)
+M4 <- ordinal::clm(sentiment ~ type*StringencyIndex_s + country, data = df) 
+
+summary(M4)
+summary(M2)
+
+#confint(M2, "type")
+
+# model comparison 
+#anova(M1, M2, M3, M4)
+
+# ASSUMPTIONS CHECK
+#proportional odds assumption 
+#ordinal::nominal_test(M2)
+#ordinal::nominal_test(M4)
+
+#ordinal::scale_test(M4)
+```
+
+
+# glm models - control analysis of joy
+```{r}
+# CONTROL ANALYSIS 
+# models for joy 
+j1 <- glm(joy ~ type, df_control, family = binomial)
+j2 <- glm(joy ~ type + country, df_control, family = binomial)
+j3 <- glm(joy ~ type + StringencyIndex_s + country, df_control, family = binomial)
+j4 <- glm(joy ~ type * StringencyIndex_s + country, df_control, family = binomial)
+
+summary(j4)
+
+```
+
+
+
+# glm models - control analyses of negative emotions
+```{r}
+# CONTROL ANALYSIS 
+# models for fear 
+f1 <- glm(fear ~ type, df_control, family = binomial)
+f2 <- glm(fear ~ type + country, df_control, family = binomial)
+f3 <- glm(fear ~ type + StringencyIndex_s + country, df_control, family = binomial)
+f4 <- glm(fear ~ type * StringencyIndex_s + country, df_control, family = binomial)
+
+summary(f4)
+
+# models for disgust 
+d1 <- glm(disgust ~ type, df_control, family = binomial)
+d2 <- glm(disgust ~ type + country, df_control, family = binomial)
+d3 <- glm(disgust ~ type + StringencyIndex_s + country, df_control, family = binomial)
+d4 <- glm(disgust ~ type * StringencyIndex_s + country, df_control, family = binomial)
+
+summary(d4)
+
+# models for sadness 
+s1 <- glm(sadness ~ type, df_control, family = binomial)
+s2 <- glm(sadness ~ type + country, df_control, family = binomial)
+s3 <- glm(sadness ~ type + StringencyIndex_s + country, df_control, family = binomial)
+s4 <- glm(sadness ~ type * StringencyIndex_s + country, df_control, family = binomial)
+
+summary(s4)
+
+```
+
+
+# glm models - full analysis of joy
+```{r}
+#models 
+J1 <- glm(joy ~ type, df, family = binomial)
+J2 <- glm(joy ~ type + country, df, family = binomial)
+J3 <- glm(joy ~ type + StringencyIndex_s + country, df, family = binomial)
+J4 <- glm(joy ~ type * StringencyIndex_s + country, df, family = binomial)
+
+summary(J4)
+
+```
+
+
+# glm models - full analyses of negative emotions
+```{r}
+
+#models for fear
+F1 <- glm(fear ~ type, df, family = binomial)
+F2 <- glm(fear ~ type + country, df, family = binomial)
+F3 <- glm(fear ~ type + StringencyIndex_s + country, df, family = binomial)
+F4 <- glm(fear ~ type * StringencyIndex_s + country, df, family = binomial)
+
+summary(F4)
+
+#models for disgust
+D1 <- glm(disgust ~ type, df, family = binomial)
+D2 <- glm(disgust ~ type + country, df, family = binomial)
+D3 <- glm(disgust ~ type + StringencyIndex_s + country, df, family = binomial)
+D4 <- glm(disgust ~ type * StringencyIndex_s + country, df, family = binomial)
+
+summary(D4)
+
+#models for sadness
+S1 <- glm(sadness ~ type, df, family = binomial)
+S2 <- glm(sadness ~ type + country, df, family = binomial)
+S3 <- glm(sadness ~ type + StringencyIndex_s + country, df, family = binomial)
+S4 <- glm(sadness ~ type * StringencyIndex_s + country, df, family = binomial)
+
+summary(S4)
+
+```
+
+
+
+
