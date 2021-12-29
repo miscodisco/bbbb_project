@@ -141,6 +141,44 @@ p4 <- df %>%
 
 (p1+p2)/(p3+p4) 
 
+# seeing if we can have percentage instead of absolute numbers :O 
+
+f1b <- df %>% 
+  filter(emotion != "others" & emotion != "surprise" & emotion != "anger") %>% 
+  ggplot(., aes(x=emotion, group = type)) +
+  geom_bar(aes(y = ..prop.., fill = factor(..x..)), stat="count") +
+  theme_minimal() +
+  geom_text(aes(label= scales::percent(..prop.., accuracy = 0.1), 
+                y = ..prop..), 
+                stat = "count", 
+                vjust = 0)+
+  labs(title = "1b) ", y = "percentage") +
+  facet_wrap(~type, labeller = labeller(type = new_labels)) +
+  theme(legend.position = "none",
+        axis.text.y = element_blank(),
+        strip.text = element_text(size=9,  color = "black"),
+        strip.background = element_rect(fill="light grey", color = "white"))
+
+f1b
+
+f1a <- df %>% 
+  ggplot(., aes(x=sentiment, group = type)) +
+  geom_bar(aes(y = ..prop.., fill = factor(..x..)), stat="count") +
+  theme_minimal() +
+  geom_text(aes(label= scales::percent(..prop.., accuracy = 0.1), 
+                y = ..prop..), 
+                stat = "count", 
+                vjust = 0)+
+  labs( y = "percentage", title = "1a)") +
+  facet_wrap(~type, labeller = labeller(type = new_labels)) +
+  theme(legend.position = "none",
+        axis.text.y = element_blank(),
+        strip.text = element_text(size=9,  color = "black"),
+        strip.background = element_rect(fill="light grey", color = "white"))+
+  scale_fill_viridis(discrete = T)
+
+f1a
+f1a/f1b
 ```
 
 # more exploratory plotting
